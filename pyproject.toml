@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "langchain-thordata"
-version = "0.2.0"
+version = "0.2.1"
 description = "LangChain tools and Python client for the ThorData SERP API"
 readme = "README.md"
 license = "MIT"

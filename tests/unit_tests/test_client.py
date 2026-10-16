@@ -48,7 +48,7 @@ def test_search_sends_form_auth_and_integration_metadata() -> None:
         assert request.headers["x-thordata-source"] == "python-sdk"
         assert request.headers["platform"] == "langchain"
         assert request.headers["api-source"] == "python-sdk"
-        assert request.headers["user-agent"] == "langchain-thordata/0.2.0"
+        assert request.headers["user-agent"] == "langchain-thordata/0.2.1"
         return httpx.Response(200, json=_success_response())
 
     http_client = httpx.Client(transport=httpx.MockTransport(handler))

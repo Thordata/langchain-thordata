@@ -1,6 +1,6 @@
 # LangChain Thordata for Python
 
-Connect [Thordata](https://www.thordata.com/serp-api/mcp?utm_source=MCP&utm_term=mcp)
+Connect [Thordata](https://www.thordata.com/?ls=github01&lk=github01)
 SERP to Python applications and LangChain agents for real-time search.
 
 This package exposes Thordata search capabilities through a Python client and a
@@ -166,4 +166,4 @@ tests use an in-memory HTTP transport and do not call Thordata services.
 
 ## Learn more
 
-- [Thordata SERP API](https://www.thordata.com/serp-api/mcp?utm_source=MCP&utm_term=mcp)
+- [Thordata SERP API](https://www.thordata.com/?ls=github01&lk=github01)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- Update the Thordata links in the README.
+
 ## 0.2.0
 
 - Switch the default API endpoint from `/fast_request` to `/request`.
