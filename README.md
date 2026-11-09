@@ -8,6 +8,15 @@ LangChain search tool. Version 1 targets Thordata's synchronous SERP endpoint,
 exposes search-result APIs only, and does not expose Web Scraper APIs or the
 `google_webpage` engine.
 
+## Get API Access
+
+Create a Thordata SERP API account and get your API key:
+
+- [Get started with Thordata SERP API](https://www.thordata.com/products/serp-api/langchain-integration?op=flora&from=github)
+- [Read the official documentation](https://doc.thordata.com)
+
+The integration uses the Thordata SERP API for real-time search in Python and LangChain agents.
+
 ## Installation
 
 ```bash
