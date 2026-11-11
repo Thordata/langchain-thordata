@@ -1,12 +1,21 @@
 # LangChain Thordata for Python
 
-Connect [Thordata](https://www.thordata.com/?ls=github01&lk=github01)
+Connect [Thordata](https://www.thordata.com/products/serp-api/langchain-integration?op=flora&from=github)
 SERP to Python applications and LangChain agents for real-time search.
 
 This package exposes Thordata SERP and selected Web Scraper capabilities through
 a Python client and independent LangChain tools. Web Scraper support is limited
 to the seven spider IDs documented below; it is not a SERP engine or an
 arbitrary webpage client.
+
+## Get API Access
+
+Create a Thordata SERP API account and get your API key:
+
+- [Get started with Thordata SERP API](https://www.thordata.com/products/serp-api/langchain-integration?op=flora&from=github)
+- [Read the official documentation](https://doc.thordata.com)
+
+The integration uses the Thordata SERP API for real-time search in Python and LangChain agents.
 
 ## Installation
 
@@ -267,4 +276,4 @@ tests use an in-memory HTTP transport and do not call Thordata services.
 
 ## Learn more
 
-- [Thordata SERP API](https://www.thordata.com/?ls=github01&lk=github01)
+- [Thordata SERP API](https://www.thordata.com/products/serp-api?op=flora&from=github)
