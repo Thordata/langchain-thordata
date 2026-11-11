@@ -14,7 +14,17 @@ from .exceptions import (
     ThorDataRateLimitError,
     ThorDataTimeoutError,
 )
-from .tools import ThorDataSearchInput, ThorDataSearchTool
+from .tools import (
+    ThorDataSearchInput,
+    ThorDataSearchTool,
+    ThorDataWebScraperInput,
+    ThorDataWebScraperTool,
+)
+from .web_scraper import (
+    SUPPORTED_WEB_SCRAPERS,
+    ThorDataWebScraperError,
+    WebScraperResponse,
+)
 
 __all__ = [
     "SUPPORTED_ENGINES",
@@ -32,5 +42,10 @@ __all__ = [
     "ThorDataSearchInput",
     "ThorDataSearchTool",
     "ThorDataTimeoutError",
+    "SUPPORTED_WEB_SCRAPERS",
+    "ThorDataWebScraperError",
+    "ThorDataWebScraperInput",
+    "ThorDataWebScraperTool",
+    "WebScraperResponse",
     "__version__",
 ]

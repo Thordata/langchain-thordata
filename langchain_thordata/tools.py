@@ -10,9 +10,10 @@ from langchain_core.callbacks import (
     CallbackManagerForToolRun,
 )
 from langchain_core.tools import BaseTool
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .client import ThorDataClient
+from .web_scraper import SUPPORTED_WEB_SCRAPERS
 
 SearchEngine = Literal[
     "google",
@@ -53,6 +54,16 @@ SearchEngine = Literal[
     "bing_maps",
     "yandex",
     "duckduckgo",
+]
+
+WebScraperId = Literal[
+    "linkedin_company_information_by-url",
+    "linkedin_job_listings_information_by-job-url",
+    "youtube_video-post_by-keyword",
+    "facebook_profile_by-profiles-url",
+    "youtube_video-post_by-explore",
+    "twitter_profile_by-profileurl",
+    "amazon_product_by-category-url",
 ]
 
 
@@ -198,6 +209,113 @@ class ThorDataSearchTool(BaseTool):
             page=page,
             safe=safe,
             tbs=time_range,
+        )
+        return self._serialize(result)
+
+    @staticmethod
+    def _serialize(result: Any) -> str:
+        return json.dumps(result, ensure_ascii=False, separators=(",", ":"), default=str)
+
+
+class ThorDataWebScraperInput(BaseModel):
+    """Input schema for a supported ThorData Web Scraper."""
+
+    spider_id: WebScraperId = Field(
+        description=(
+            "One of the seven supported ThorData Web Scraper IDs: "
+            + ", ".join(SUPPORTED_WEB_SCRAPERS)
+        )
+    )
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Parameters for the selected scraper, such as url, keyword, or page_turning.",
+    )
+    max_wait_seconds: int = Field(
+        default=300,
+        ge=1,
+        le=300,
+        description="Maximum total wait time for the remote task, in seconds.",
+    )
+    include_errors: bool = Field(
+        default=True,
+        description="Keep scraper records that contain an error marker.",
+    )
+    file_name: str = Field(
+        default="{{TasksID}}",
+        min_length=1,
+        description="Remote result file name used by the builder endpoint.",
+    )
+
+    @field_validator("max_wait_seconds", mode="before")
+    @classmethod
+    def validate_max_wait(cls, value: Any) -> Any:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("max_wait_seconds must be an integer between 1 and 300")
+        return value
+
+
+class ThorDataWebScraperTool(BaseTool):
+    """LangChain tool that runs one of ThorData's supported Web Scrapers."""
+
+    name: str = "thordata_web_scraper"
+    description: str = (
+        "Run one of seven supported ThorData Web Scrapers, wait for the final JSON records, "
+        "and return those records."
+    )
+    args_schema: type[BaseModel] = ThorDataWebScraperInput
+    client: ThorDataClient = Field(exclude=True)
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def __init__(
+        self,
+        *,
+        client: ThorDataClient | None = None,
+        api_key: str | None = None,
+        timeout: float = 30.0,
+        **kwargs: Any,
+    ) -> None:
+        resolved_client = client or ThorDataClient(
+            api_key=api_key,
+            timeout=timeout,
+        )
+        super().__init__(client=resolved_client, **kwargs)
+
+    def _run(
+        self,
+        spider_id: WebScraperId,
+        params: dict[str, Any] | None = None,
+        max_wait_seconds: int = 300,
+        include_errors: bool = True,
+        file_name: str = "{{TasksID}}",
+        run_manager: CallbackManagerForToolRun | None = None,
+    ) -> str:
+        del run_manager
+        result = self.client.scrape(
+            spider_id,
+            params,
+            max_wait_seconds=max_wait_seconds,
+            include_errors=include_errors,
+            file_name=file_name,
+        )
+        return self._serialize(result)
+
+    async def _arun(
+        self,
+        spider_id: WebScraperId,
+        params: dict[str, Any] | None = None,
+        max_wait_seconds: int = 300,
+        include_errors: bool = True,
+        file_name: str = "{{TasksID}}",
+        run_manager: AsyncCallbackManagerForToolRun | None = None,
+    ) -> str:
+        del run_manager
+        result = await self.client.ascrape(
+            spider_id,
+            params,
+            max_wait_seconds=max_wait_seconds,
+            include_errors=include_errors,
+            file_name=file_name,
         )
         return self._serialize(result)
 

@@ -3,10 +3,10 @@
 Connect [Thordata](https://www.thordata.com/?ls=github01&lk=github01)
 SERP to Python applications and LangChain agents for real-time search.
 
-This package exposes Thordata search capabilities through a Python client and a
-LangChain search tool. Version 1 targets Thordata's synchronous SERP endpoint,
-exposes search-result APIs only, and does not expose Web Scraper APIs or the
-`google_webpage` engine.
+This package exposes Thordata SERP and selected Web Scraper capabilities through
+a Python client and independent LangChain tools. Web Scraper support is limited
+to the seven spider IDs documented below; it is not a SERP engine or an
+arbitrary webpage client.
 
 ## Installation
 
@@ -48,8 +48,12 @@ with ThorDataClient() as client:
     print(results)
 ```
 
-The client reuses its HTTP connection pool until `close()` or `aclose()` is
-called. Prefer a synchronous or asynchronous context manager. It also provides
+The client reuses its synchronous SERP HTTP connection pool until `close()` or
+`aclose()` is called. Each asynchronous operation owns a connection pool for
+that operation and closes it in the same event loop. A scraper reuses that pool
+for submission, polling, and download. Externally supplied HTTP clients remain
+caller-owned and must be used and closed in their original event loop.
+The client also provides
 `await client.asearch(...)` for asynchronous callers. The current `/request`
 endpoint does not guarantee HTML, so the client intentionally exposes JSON
 search methods only.
@@ -73,6 +77,88 @@ flights = client.search(
 In either form, the convenience names `query`, `country`, and `language` map to
 `q`, `gl`, and `hl`. Explicit API-native names such as `q`, `gl`, `hl`, and
 `text` are preserved. For Yandex, `query` or `q` is sent as `text`.
+
+## Web Scraper client
+
+The client supports exactly these spider IDs and fields:
+
+- `linkedin_company_information_by-url`: `url`
+- `linkedin_job_listings_information_by-job-url`: `job_url`
+- `youtube_video-post_by-keyword`: `keyword`, optional `num_of_posts`
+- `facebook_profile_by-profiles-url`: `url`
+- `youtube_video-post_by-explore`: `url`, optional boolean `all_tabs`
+- `twitter_profile_by-profileurl`: `url`
+- `amazon_product_by-category-url`: `url`, optional positive `page_turning`, optional `sort_by`
+
+`scrape` waits for and returns the final records. `scrape_response` also keeps
+the `task_id`, `spider_id`, status, and record counts. The asynchronous methods
+`ascrape` and `ascrape_response` provide the same behavior:
+
+```python
+from langchain_thordata import ThorDataClient
+
+with ThorDataClient() as client:
+    response = client.scrape_response(
+        "linkedin_company_information_by-url",
+        {"url": "https://www.linkedin.com/company/microsoft"},
+        max_wait_seconds=300,
+        include_errors=True,
+        file_name="{{TasksID}}",
+    )
+    print(response.result, response.task_id, response.status)
+```
+
+Each call submits one task and polls every five seconds for at most 300 seconds.
+`max_wait_seconds` is an integer from 1 to 300 (default 300). The total budget
+includes requests, response bodies, polling delays, and result parsing.
+An expired budget cannot return a successful result. A timeout after submission
+retains the task ID; it does not cancel the remote task or submit another one.
+`all_tabs=False`
+is sent using the service's current `flase` wire value. Partial records are
+preserved with status `partial`; an all-failed result raises
+`ThorDataWebScraperError`. The scraper uses the same API key environment
+variables as SERP and fixed Thordata Web Scraper endpoints.
+Web Scraper POST requests also send the string form fields `api_source=sdk`
+and `source_platform=langchain-py`; these values are not sent as headers.
+
+With `include_errors=True`, a failed task triggers one best-effort retrieval
+of its error records within the remaining budget. The exception retains
+`error_code="scrape_failed"`, `task_id`, and a sanitized message; `service_code`
+contains the server's error code when available. If diagnostics are unavailable,
+the original failure is preserved. Redirects are not followed.
+
+`num_of_posts` and `page_turning` accept positive integer values (including
+`3.0`) or digit strings up to 9007199254740991. Booleans, fractional and
+non-finite values are rejected. Amazon sends `page_turning` only when provided;
+when omitted, the service uses its default. `sort_by` accepts the schema values
+and the documentation aliases `Average Rating` and `Featured Recommendations`,
+which are converted to the schema values. This package supports only the
+seven IDs above; other scrapers require the raw Web Scraper API.
+
+`scrape_response()` reports `completed`, `partial`, or `empty`, and always
+includes `error_record_count` (zero when there are no error records). `empty`
+means the parsed records contain no meaningful result content; it is not proof
+of an upstream parsing failure. `scrape()` and the LangChain tool continue to
+return only the records. Use `scrape_response()` when status matters.
+
+Result redaction replaces known request and download credentials, including
+URL-encoded spellings. It preserves other fields, whitespace, long text, and
+public signed image URLs.
+
+Run the standalone example after installing the local package and setting the
+API key:
+
+```bash
+python examples/scrape_basic.py "https://www.linkedin.com/company/microsoft"
+```
+
+The default synchronous scraper also owns a pool for one operation and closes it
+in that operation's event loop. One synchronous scrape can run at a time on a
+client; use separate clients for parallel synchronous calls, or use `ascrape`.
+When you inject a synchronous transport that blocks, the SDK still stops waiting
+at the deadline but cannot forcibly interrupt arbitrary caller code. That
+client's scrape slot stays occupied until the in-flight transport returns and
+its response is closed; no further requests are started for the expired task.
 
 ## LangChain tool
 
@@ -115,6 +201,21 @@ agent = create_agent(model, tools=[ThorDataSearchTool()])
 The agent example requires the separate `langchain` package; the integration's
 runtime dependency stays limited to `langchain-core`.
 
+Create the independent Web Scraper tool when an agent needs structured records:
+
+```python
+from langchain_thordata import ThorDataWebScraperTool
+
+tool = ThorDataWebScraperTool()
+result = tool.invoke(
+    {
+        "spider_id": "youtube_video-post_by-keyword",
+        "params": {"keyword": "machine learning", "num_of_posts": 10},
+    }
+)
+print(result)
+```
+
 ## Supported engines
 
 - Google search: `google`, `google_light`, `google_web`, `google_images`,
@@ -137,7 +238,7 @@ to `google_local` before the request is sent.
 Unsupported parameters are omitted from the request. Unsupported engines are
 rejected because silently switching a search source would change user intent.
 
-Every request sends fixed integration metadata:
+Every SERP request sends fixed integration metadata:
 
 - Platform: `langchain`
 - Source: `python-sdk`

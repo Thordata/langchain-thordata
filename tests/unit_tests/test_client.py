@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from urllib.parse import parse_qs
 
@@ -48,7 +49,7 @@ def test_search_sends_form_auth_and_integration_metadata() -> None:
         assert request.headers["x-thordata-source"] == "python-sdk"
         assert request.headers["platform"] == "langchain"
         assert request.headers["api-source"] == "python-sdk"
-        assert request.headers["user-agent"] == "langchain-thordata/0.2.1"
+        assert request.headers["user-agent"] == "langchain-thordata/0.3.0"
         return httpx.Response(200, json=_success_response())
 
     http_client = httpx.Client(transport=httpx.MockTransport(handler))
@@ -190,7 +191,7 @@ def test_default_sync_client_reuses_connection_and_closes(monkeypatch: pytest.Mo
 
 
 @pytest.mark.asyncio
-async def test_default_async_client_reuses_connection_and_closes(
+async def test_default_async_client_closes_each_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     instances: list[object] = []
@@ -213,9 +214,41 @@ async def test_default_async_client_reuses_connection_and_closes(
     await client.asearch(q="first")
     await client.asearch(q="second")
 
-    assert len(instances) == 1
+    assert len(instances) == 2
+    assert all(instance.closed for instance in instances)
     await client.aclose()
-    assert instances[0].closed is True
+
+
+def test_default_async_client_recreates_after_event_loop_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instances: list[object] = []
+
+    class LoopBoundFakeAsyncClient:
+        def __init__(self, *, timeout: float) -> None:
+            self.timeout = timeout
+            self.loop = asyncio.get_running_loop()
+            self.closed = False
+            instances.append(self)
+
+        async def post(self, *args: object, **kwargs: object) -> httpx.Response:
+            if asyncio.get_running_loop() is not self.loop:
+                raise RuntimeError("event loop changed")
+            return httpx.Response(200, json=_success_response())
+
+        async def aclose(self) -> None:
+            assert asyncio.get_running_loop() is self.loop
+            self.closed = True
+
+    monkeypatch.setattr(client_module.httpx, "AsyncClient", LoopBoundFakeAsyncClient)
+    client = ThorDataClient(api_key="test-secret")
+
+    asyncio.run(client.asearch(q="first"))
+    asyncio.run(client.asearch(q="second"))
+    asyncio.run(client.aclose())
+
+    assert len(instances) == 2
+    assert all(instance.closed for instance in instances)
 
 
 @pytest.mark.asyncio
